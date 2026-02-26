@@ -1,0 +1,65 @@
+package main
+
+import (
+	"log"
+	"net/http"
+	"os"
+	"path/filepath"
+)
+
+// spaHandler implements the http.Handler interface, so we can use it
+// to respond to HTTP requests. The path to the static directory and
+// path to the index file within that static directory are used to
+// serve the SPA in the given static directory.
+type spaHandler struct {
+	staticPath string
+	indexPath  string
+}
+
+// ServeHTTP inspects the URL path to locate a file within the static dir
+// on the SPA handler. If a file is found, it will be served. If not, the
+// file located at the index path on the SPA handler will be served. This
+// is suitable behavior for serving an SPA (single page application).
+func (h spaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// get the absolute path to prevent directory traversal
+	path, err := filepath.Abs(r.URL.Path)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// prepend the path with the path to the static directory
+	path = filepath.Join(h.staticPath, path)
+
+	// check whether a file exists at the given path
+	info, err := os.Stat(path)
+	if os.IsNotExist(err) || info.IsDir() {
+		// file does not exist or is a directory, serve index.html
+		http.ServeFile(w, r, filepath.Join(h.staticPath, h.indexPath))
+		return
+	} else if err != nil {
+		// if we got an error (that wasn't that the file doesn't exist) stating the
+		// file, return a 500 internal server error and stop
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// otherwise, use http.ServeFile to serve the exact file we found
+	http.ServeFile(w, r, path)
+}
+
+func main() {
+	staticFolder := "./frontend/dist"
+	port := ":80"
+
+	h := spaHandler{staticPath: staticFolder, indexPath: "index.html"}
+
+	log.Printf("Starting CTF platform Server on port %s", port)
+	log.Printf("Serving static Vue files from %s", staticFolder)
+	log.Printf("CTF platform frontend will be reachable on http://localhost/")
+
+	// Start the server
+	if err := http.ListenAndServe(port, h); err != nil {
+		log.Fatalf("Server failed to start. Port 80 usually requires root privileges. Are you running as sudo? Error: %v", err)
+	}
+}
