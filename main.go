@@ -54,9 +54,7 @@ func main() {
 
 	h := spaHandler{staticPath: staticFolder, indexPath: "index.html"}
 
-	log.Printf("Starting CTF platform Server on port %s", port)
-	log.Printf("Serving static Vue files from %s", staticFolder)
-	log.Printf("CTF platform frontend will be reachable on http://localhost/")
+	log.Printf("http://localhost/")
 
 	// Start the server
 	if err := http.ListenAndServe(port, h); err != nil {
