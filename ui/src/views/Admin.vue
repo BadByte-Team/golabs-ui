@@ -122,8 +122,14 @@
       <v-card class="glass-panel" border="primary">
         <v-card-title class="text-primary font-weight-bold">Create New Protocol</v-card-title>
         <v-card-text>
-          <v-text-field v-model="newEvent.title" label="Event Title" variant="outlined" color="primary"></v-text-field>
-          <v-textarea v-model="newEvent.description" label="Description" variant="outlined" color="primary"></v-textarea>
+          <v-alert v-if="dialogError" type="error" variant="tonal" class="mb-4">
+            {{ dialogError }}
+          </v-alert>
+          <v-text-field v-model="newEvent.name" label="Event Title" variant="outlined" color="primary" class="mb-2"></v-text-field>
+          <v-textarea v-model="newEvent.description" label="Description" variant="outlined" color="primary" class="mb-2"></v-textarea>
+          <v-text-field v-model.number="newEvent.max_team_size" label="Max Team Size" type="number" variant="outlined" color="primary" class="mb-2"></v-text-field>
+          <v-text-field v-model="newEvent.starts_at" label="Starts At" type="datetime-local" variant="outlined" color="primary" class="mb-2"></v-text-field>
+          <v-text-field v-model="newEvent.ends_at" label="Ends At" type="datetime-local" variant="outlined" color="primary"></v-text-field>
         </v-card-text>
         <v-card-actions>
           <v-spacer></v-spacer>
@@ -143,12 +149,16 @@ const tab = ref('users')
 const users = ref([])
 const events = ref([])
 const error = ref('')
+const dialogError = ref('')
 const loading = ref(false)
 const dialog = ref(false)
 
 const newEvent = ref({
-  title: '',
-  description: ''
+  name: '',
+  description: '',
+  max_team_size: 4,
+  starts_at: new Date().toISOString().slice(0, 16),
+  ends_at: new Date(Date.now() + 86400000).toISOString().slice(0, 16)
 })
 
 const getStatusColor = (status) => {
@@ -203,16 +213,25 @@ const changeEventStatus = async (id, action) => {
 
 const createEvent = async () => {
   try {
+    dialogError.value = ''
     await api.post('/events', {
-      name: newEvent.value.title,
-      title: newEvent.value.title,
-      description: newEvent.value.description
+      name: newEvent.value.name,
+      description: newEvent.value.description,
+      max_team_size: Number(newEvent.value.max_team_size),
+      starts_at: new Date(newEvent.value.starts_at).toISOString(),
+      ends_at: new Date(newEvent.value.ends_at).toISOString(),
     })
     dialog.value = false
-    newEvent.value = { title: '', description: '' }
+    newEvent.value = {
+      name: '',
+      description: '',
+      max_team_size: 4,
+      starts_at: new Date().toISOString().slice(0, 16),
+      ends_at: new Date(Date.now() + 86400000).toISOString().slice(0, 16)
+    }
     await fetchEvents()
   } catch (err) {
-    error.value = 'Failed to deploy event.'
+    dialogError.value = err.response?.data?.error || err.response?.data?.message || err.message || 'Failed to deploy event.'
   }
 }
 
