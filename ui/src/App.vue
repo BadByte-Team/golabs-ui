@@ -1,12 +1,19 @@
 <template>
   <v-app class="bg-background">
-    <router-view v-slot="{ Component }">
-      <v-fade-transition hide-on-leave>
-        <component :is="Component" />
-      </v-fade-transition>
-    </router-view>
+    <NavBar />
+    <v-main>
+      <router-view v-slot="{ Component }">
+        <v-fade-transition hide-on-leave>
+          <component :is="Component" />
+        </v-fade-transition>
+      </router-view>
+    </v-main>
   </v-app>
 </template>
+
+<script setup>
+import NavBar from '@/components/NavBar.vue'
+</script>
 
 <style>
 /* Global aesthetics like custom scrollbar or reset */
