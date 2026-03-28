@@ -9,7 +9,6 @@
       <v-tab value="users"><v-icon start>mdi-account-group</v-icon> Operatives</v-tab>
       <v-tab value="events"><v-icon start>mdi-calendar-alert</v-icon> War Games</v-tab>
       <v-tab value="challenges"><v-icon start>mdi-skull-crossbones</v-icon> Challenges</v-tab>
-      <v-tab value="practice"><v-icon start>mdi-school</v-icon> Practice</v-tab>
     </v-tabs>
 
     <v-card class="glass-panel" rounded="xl" border="error">
@@ -181,63 +180,6 @@
           </v-card-text>
         </v-window-item>
 
-        <!-- PRACTICE TAB -->
-        <v-window-item value="practice">
-          <v-card-text>
-            <div class="d-flex justify-space-between align-center mb-6">
-              <h2 class="text-h5 text-warning font-weight-black hacker-text">Practice Arena</h2>
-            </div>
-
-            <v-select
-              v-model="practiceEventId"
-              :items="finishedEvents"
-              item-title="name"
-              item-value="id"
-              label="Select Finished Event"
-              variant="outlined" color="warning" class="mb-6"
-              @update:model-value="fetchPracticeChallenges"
-            ></v-select>
-
-            <template v-if="practiceEventId">
-              <v-btn color="warning" variant="outlined" class="mb-4" @click="openCreatePracticeChallengeDialog" prepend-icon="mdi-plus" size="small">Add Practice Challenge</v-btn>
-
-              <v-table theme="dark" class="bg-transparent table-custom">
-                <thead>
-                  <tr>
-                    <th class="text-left text-warning">Name</th>
-                    <th class="text-left text-warning">Category</th>
-                    <th class="text-left text-warning">Difficulty</th>
-                    <th class="text-left text-warning">Points</th>
-                    <th class="text-left text-warning">Visible</th>
-                    <th class="text-center text-warning">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="ch in practiceChallenges" :key="ch.id">
-                    <td class="font-weight-bold text-primary">{{ ch.title }}</td>
-                    <td><v-chip size="x-small" variant="outlined" class="text-uppercase">{{ ch.category }}</v-chip></td>
-                    <td><v-chip :color="getDiffColor(ch.difficulty)" size="x-small" variant="flat" class="text-uppercase font-weight-bold">{{ ch.difficulty }}</v-chip></td>
-                    <td>{{ ch.points }}</td>
-                    <td>
-                      <v-chip :color="ch.visible ? 'success' : 'grey'" size="small" variant="outlined">
-                        {{ ch.visible ? 'YES' : 'NO' }}
-                      </v-chip>
-                    </td>
-                    <td class="text-center">
-                      <v-btn size="small" class="mx-1" color="primary" variant="outlined" @click="openEditPracticeChallengeDialog(ch)">EDIT</v-btn>
-                      <v-btn size="small" class="mx-1" color="secondary" variant="outlined" @click="openSetPracticeFlagDialog(ch)" prepend-icon="mdi-flag-variant">FLAG</v-btn>
-                      <v-btn v-if="!ch.visible" size="small" class="mx-1" color="success" variant="elevated" @click="publishPracticeChallenge(ch.id)">PUBLISH</v-btn>
-                    </td>
-                  </tr>
-                  <tr v-if="practiceChallenges.length === 0">
-                    <td colspan="6" class="text-center py-8 text-grey">No practice challenges in this event.</td>
-                  </tr>
-                </tbody>
-              </v-table>
-            </template>
-          </v-card-text>
-        </v-window-item>
-
       </v-window>
     </v-card>
 
@@ -342,7 +284,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { api } from '@/api'
 import { useNotify } from '@/composables/useNotify'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
@@ -624,9 +566,6 @@ const saveChallenge = async () => {
       await api.post(`/events/${selectedEventId.value}/challenges`, payload)
     }
     await fetchChallenges()
-    if (practiceEventId.value && selectedEventId.value === practiceEventId.value) {
-      await fetchPracticeChallenges()
-    }
     challengeDialog.value = false
     notify.success(editModeChallenge.value ? 'Challenge updated.' : 'Challenge created.')
   } catch (err) {
@@ -668,63 +607,6 @@ const saveFlag = async () => {
     flagDialogError.value = err.response?.data?.error || 'Failed to set flag.'
   } finally {
     formLoading.value = false
-  }
-}
-
-// ── Practice ────────────────────────────────────────────────────────────────────
-const finishedEvents = computed(() => events.value.filter(e => e.status === 'finished'))
-const practiceEventId = ref(null)
-const practiceChallenges = ref([])
-
-const fetchPracticeChallenges = async () => {
-  if (!practiceEventId.value) return
-  try {
-    const res = await api.get(`/events/${practiceEventId.value}/challenges`)
-    practiceChallenges.value = res.data.data || res.data || []
-  } catch {
-    practiceChallenges.value = []
-  }
-}
-
-const openCreatePracticeChallengeDialog = () => {
-  editModeChallenge.value = false
-  selectedEventId.value = practiceEventId.value
-  challengeForm.value = { title: '', difficulty: 'medium', category: 'web', description: '', points: 100, file_url: '' }
-  challengeDialogError.value = ''
-  challengeDialog.value = true
-}
-
-const openEditPracticeChallengeDialog = (ch) => {
-  editModeChallenge.value = true
-  selectedEventId.value = practiceEventId.value
-  selectedChallengeId.value = ch.id
-  challengeForm.value = {
-    title: ch.title,
-    difficulty: ch.difficulty || 'medium',
-    category: ch.category,
-    description: ch.description,
-    points: ch.points,
-    file_url: ch.file_url || ''
-  }
-  challengeDialogError.value = ''
-  challengeDialog.value = true
-}
-
-const openSetPracticeFlagDialog = (ch) => {
-  selectedEventId.value = practiceEventId.value
-  selectedChallengeId.value = ch.id
-  flagForm.value.flag = ''
-  flagDialogError.value = ''
-  flagDialog.value = true
-}
-
-const publishPracticeChallenge = async (cid) => {
-  try {
-    await api.post(`/events/${practiceEventId.value}/challenges/${cid}/publish`)
-    notify.success('Practice challenge published.')
-    await fetchPracticeChallenges()
-  } catch (err) {
-    notify.error(err.response?.data?.error || 'Failed to publish.')
   }
 }
 
