@@ -28,6 +28,26 @@
           Dashboard
         </v-btn>
         
+        <v-btn 
+          variant="text" 
+          prepend-icon="mdi-calendar-star" 
+          to="/events" 
+          class="nav-btn mx-1"
+          active-class="text-primary font-weight-bold"
+        >
+          Events
+        </v-btn>
+
+        <v-btn 
+          variant="text" 
+          prepend-icon="mdi-sword-cross" 
+          to="/practice" 
+          class="nav-btn mx-1"
+          active-class="text-primary font-weight-bold"
+        >
+          Practice
+        </v-btn>
+        
         <v-slide-x-transition>
           <v-btn 
             v-if="isAdmin" 
@@ -68,6 +88,14 @@
           <v-list bg-color="#0a0e17" rounded="lg" elevation="8" class="mobile-menu-list border mt-2">
             <v-list-item to="/dashboard" prepend-icon="mdi-view-dashboard" @click="mobileMenu = false" active-class="text-primary">
               <v-list-item-title>Dashboard</v-list-item-title>
+            </v-list-item>
+
+            <v-list-item to="/events" prepend-icon="mdi-calendar-star" @click="mobileMenu = false" active-class="text-primary">
+              <v-list-item-title>Events</v-list-item-title>
+            </v-list-item>
+
+            <v-list-item to="/practice" prepend-icon="mdi-sword-cross" @click="mobileMenu = false" active-class="text-primary">
+              <v-list-item-title>Practice</v-list-item-title>
             </v-list-item>
             
             <v-divider class="my-1 border-opacity-25" color="primary"></v-divider>
