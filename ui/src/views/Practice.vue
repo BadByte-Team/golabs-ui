@@ -1,9 +1,18 @@
 <template>
   <v-container class="py-10 practice-page">
-    <h1 class="text-h3 font-weight-black text-white mb-2 ctf-header">
-      <v-icon size="36" color="warning" class="mr-2">mdi-school</v-icon>Practice Arena
-    </h1>
-    <p class="text-grey-lighten-1 mb-8">Sharpen your skills with challenges from past events.</p>
+    <div class="d-flex flex-column flex-md-row justify-space-between align-start align-md-center mb-8">
+      <div>
+        <h1 class="text-h3 font-weight-black text-white mb-2 ctf-header">
+          <v-icon size="36" color="warning" class="mr-2">mdi-school</v-icon>Practice Arena
+        </h1>
+        <p class="text-grey-lighten-1 mb-0">Sharpen your skills with challenges from past events.</p>
+      </div>
+      <div v-if="selectedEventId" class="mt-4 mt-md-0">
+        <v-btn color="warning" variant="outlined" @click="openTeamDialog" prepend-icon="mdi-account-group">
+          Practice Team
+        </v-btn>
+      </div>
+    </div>
 
     <!-- Loading -->
     <div v-if="loading" class="text-center py-16">
@@ -118,10 +127,101 @@
 
           <v-divider class="mb-4 border-opacity-25"></v-divider>
 
-          <v-alert type="info" variant="tonal" class="mb-0" icon="mdi-school">
-            <span class="font-weight-bold">Practice Mode</span>
-            <span class="text-caption ml-2">This challenge is from a past event. Flag submission is disabled.</span>
+          <v-alert
+            v-if="solvedIds.has(selectedChallenge.id)"
+            type="success"
+            variant="tonal"
+            class="mb-0"
+            icon="mdi-check-decagram"
+          >
+            <span class="font-weight-bold">Challenge Completed!</span>
+            <span class="text-caption ml-2">You have already captured this flag in practice mode.</span>
           </v-alert>
+
+          <template v-else>
+            <v-alert type="info" variant="tonal" class="mb-4" icon="mdi-school">
+              <span class="font-weight-bold">Practice Mode</span>
+              <span class="text-caption ml-2">This is a past event. You can practice solving its challenges.</span>
+            </v-alert>
+            
+            <div v-if="!isTeamMember" class="text-center py-4 text-warning">
+              <v-icon class="mb-2">mdi-account-group</v-icon>
+              <div>You must join a <strong>Practice Team</strong> (top right) to submit flags.</div>
+            </div>
+
+            <div v-else class="d-flex align-center gap-2">
+              <v-text-field
+                v-model="flagInput"
+                label="Submit Flag"
+                placeholder="golabs{...}"
+                variant="outlined"
+                color="warning"
+                prepend-inner-icon="mdi-flag-variant"
+                hide-details
+                density="comfortable"
+                @keyup.enter="submitFlag"
+              ></v-text-field>
+              <v-btn 
+                color="warning" 
+                variant="elevated" 
+                @click="submitFlag" 
+                :loading="submitLoading"
+                :disabled="!flagInput.trim()"
+                class="font-weight-bold"
+              >
+                Submit
+              </v-btn>
+            </div>
+          </template>
+        </v-card-text>
+      </v-card>
+    </v-dialog>
+
+    <!-- Team Dialog -->
+    <v-dialog v-model="teamDialog" max-width="500">
+      <v-card class="glass-panel" border="warning" rounded="xl">
+        <v-card-title class="d-flex justify-space-between align-center px-6 pt-6 text-warning font-weight-bold">
+          Practice Team
+          <v-btn icon="mdi-close" variant="text" size="small" @click="teamDialog = false"></v-btn>
+        </v-card-title>
+
+        <v-tabs v-model="teamTab" color="warning" grow>
+          <v-tab value="members">Members</v-tab>
+          <v-tab value="join">Join</v-tab>
+          <v-tab value="create">Create</v-tab>
+        </v-tabs>
+
+        <v-card-text class="pt-6">
+          <v-alert v-if="teamMsg" :type="teamMsgType" variant="tonal" class="mb-4">{{ teamMsg }}</v-alert>
+          
+          <v-window v-model="teamTab">
+            <!-- Members -->
+            <v-window-item value="members">
+              <p v-if="teamMembers.length === 0" class="text-grey text-center py-4">You are not in a team for this event yet.</p>
+              <v-list v-else bg-color="transparent" density="compact">
+                <v-list-item v-for="m in teamMembers" :key="m.user_id">
+                  <template v-slot:prepend>
+                    <v-icon color="warning">mdi-account</v-icon>
+                  </template>
+                  <v-list-item-title class="text-white">{{ m.username }}</v-list-item-title>
+                  <v-list-item-subtitle class="text-grey">{{ m.role }}</v-list-item-subtitle>
+                </v-list-item>
+              </v-list>
+            </v-window-item>
+
+            <!-- Join -->
+            <v-window-item value="join">
+              <v-text-field v-model="joinTeamName" label="Team Name" variant="outlined" color="warning" class="mb-3"></v-text-field>
+              <v-text-field v-model="joinSecret" label="Join Secret" variant="outlined" color="warning" @keyup.enter="joinTeam"></v-text-field>
+              <v-btn color="warning" block @click="joinTeam" :loading="teamLoading" class="mt-2 font-weight-bold">Join</v-btn>
+            </v-window-item>
+
+            <!-- Create -->
+            <v-window-item value="create">
+              <v-text-field v-model="newTeamName" label="Team Name" variant="outlined" color="warning" @keyup.enter="createTeam"></v-text-field>
+              <v-btn color="warning" block @click="createTeam" :loading="teamLoading" class="mt-2 font-weight-bold">Create</v-btn>
+            </v-window-item>
+          </v-window>
         </v-card-text>
       </v-card>
     </v-dialog>
@@ -131,6 +231,11 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { api } from '@/api'
+import { useNotify } from '@/composables/useNotify'
+import { useAuth } from '@/composables/useAuth'
+
+const notify = useNotify()
+const { userId } = useAuth()
 
 const loading = ref(true)
 const loadingChallenges = ref(false)
@@ -142,6 +247,21 @@ const activeCat = ref('')
 // Challenge dialog
 const challengeDialog = ref(false)
 const selectedChallenge = ref(null)
+const flagInput = ref('')
+const submitLoading = ref(false)
+const solvedIds = ref(new Set())
+
+// Team management
+const teamDialog = ref(false)
+const teamTab = ref('members')
+const teamMembers = ref([])
+const teamMsg = ref('')
+const teamMsgType = ref('info')
+const teamLoading = ref(false)
+const joinTeamName = ref('')
+const joinSecret = ref('')
+const newTeamName = ref('')
+const isTeamMember = ref(false)
 
 const categories = computed(() => [...new Set(challenges.value.map(c => c.category))])
 const filteredChallenges = computed(() => {
@@ -170,12 +290,37 @@ const fetchFinishedEvents = async () => {
   }
 }
 
+const fetchTeamMembers = async () => {
+  try {
+    const teamsRes = await api.get(`/events/${selectedEventId.value}/teams`)
+    const teams = teamsRes.data.data || teamsRes.data || []
+    for (const team of teams) {
+      try {
+        const membersRes = await api.get(`/events/${selectedEventId.value}/teams/${team.id}/members`)
+        const members = membersRes.data.data || membersRes.data || []
+        if (members.some(m => m.user_id === userId.value)) {
+          teamMembers.value = members
+          isTeamMember.value = true
+          return
+        }
+      } catch { /* skip */ }
+    }
+    teamMembers.value = []
+    isTeamMember.value = false
+  } catch {
+    teamMembers.value = []
+    isTeamMember.value = false
+  }
+}
+
 const fetchChallenges = async () => {
   if (!selectedEventId.value) return
   loadingChallenges.value = true
   activeCat.value = ''
   try {
-    const res = await api.get(`/events/${selectedEventId.value}/challenges`)
+    const p1 = api.get(`/events/${selectedEventId.value}/challenges`)
+    const p2 = fetchTeamMembers()
+    const [res] = await Promise.all([p1, p2])
     challenges.value = res.data.data || res.data || []
   } catch {
     challenges.value = []
@@ -184,9 +329,94 @@ const fetchChallenges = async () => {
   }
 }
 
+const openTeamDialog = async () => {
+  teamMsg.value = ''
+  teamDialog.value = true
+  await fetchTeamMembers()
+}
+
 const openChallenge = (ch) => {
   selectedChallenge.value = ch
+  flagInput.value = ''
   challengeDialog.value = true
+}
+
+const submitFlag = async () => {
+  if (!flagInput.value.trim() || !selectedChallenge.value) return
+  submitLoading.value = true
+  try {
+    const res = await api.post(`/events/${selectedEventId.value}/challenges/${selectedChallenge.value.id}/submit`, {
+      flag: flagInput.value.trim()
+    })
+    if (res.data.correct) {
+      solvedIds.value.add(selectedChallenge.value.id)
+      if (res.data.points > 0) {
+        notify.success(`Correct! +${res.data.points} points`)
+      } else {
+        notify.info('Challenge was already solved.')
+      }
+      await fetchChallenges()
+    } else {
+      notify.error('Incorrect flag. Try again.')
+    }
+  } catch (err) {
+    const errMsg = err.response?.data?.error || ''
+    if (errMsg.toLowerCase().includes('already') || errMsg.toLowerCase().includes('solved')) {
+      solvedIds.value.add(selectedChallenge.value.id)
+      notify.info('This challenge has already been solved by your team.')
+    } else {
+      notify.error(errMsg || 'Failed to submit flag.')
+    }
+  } finally {
+    submitLoading.value = false
+    flagInput.value = ''
+  }
+}
+
+const joinTeam = async () => {
+  if (!joinTeamName.value.trim() || !joinSecret.value.trim()) {
+    teamMsg.value = 'Both team name and join secret are required.'
+    teamMsgType.value = 'error'
+    return
+  }
+  teamLoading.value = true
+  try {
+    await api.post(`/events/${selectedEventId.value}/teams/join`, {
+      team_name: joinTeamName.value.trim(),
+      join_secret: joinSecret.value.trim()
+    })
+    teamMsg.value = 'Successfully joined team!'
+    teamMsgType.value = 'success'
+    joinTeamName.value = ''
+    joinSecret.value = ''
+    await fetchTeamMembers()
+  } catch (err) {
+    teamMsg.value = err.response?.data?.error || 'Failed to join team.'
+    teamMsgType.value = 'error'
+  } finally {
+    teamLoading.value = false
+  }
+}
+
+const createTeam = async () => {
+  if (!newTeamName.value.trim()) {
+    teamMsg.value = 'Team name is required.'
+    teamMsgType.value = 'error'
+    return
+  }
+  teamLoading.value = true
+  try {
+    const res = await api.post(`/events/${selectedEventId.value}/teams`, { name: newTeamName.value.trim() })
+    teamMsg.value = `Team created! Save your Join Secret: ${res.data.join_secret}`
+    teamMsgType.value = 'success'
+    newTeamName.value = ''
+    await fetchTeamMembers()
+  } catch (err) {
+    teamMsg.value = err.response?.data?.error || 'Failed to create team.'
+    teamMsgType.value = 'error'
+  } finally {
+    teamLoading.value = false
+  }
 }
 
 onMounted(fetchFinishedEvents)
