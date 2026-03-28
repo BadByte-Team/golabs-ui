@@ -143,34 +143,44 @@
 
           <v-divider class="mb-4 border-opacity-25"></v-divider>
 
-          <!-- Flag Submission -->
-          <div class="d-flex align-center gap-2">
-            <v-text-field
-              v-model="flagInput"
-              label="Submit Flag"
-              placeholder="golabs{...}"
-              variant="outlined"
-              color="primary"
-              prepend-inner-icon="mdi-flag-variant"
-              hide-details
-              density="comfortable"
-              @keyup.enter="submitFlag"
-              :disabled="solvedIds.has(selectedChallenge.id)"
-            ></v-text-field>
-            <v-btn 
-              color="primary" 
-              variant="elevated" 
-              @click="submitFlag" 
-              :loading="submitLoading"
-              :disabled="!flagInput.trim() || solvedIds.has(selectedChallenge.id)"
-              class="font-weight-bold"
-            >
-              Submit
-            </v-btn>
-          </div>
-          <p v-if="solvedIds.has(selectedChallenge.id)" class="text-success text-caption mt-2 font-weight-bold">
-            <v-icon size="small" class="mr-1">mdi-check-circle</v-icon>Already solved!
-          </p>
+          <!-- Solved Badge -->
+          <v-alert
+            v-if="solvedIds.has(selectedChallenge.id)"
+            type="success"
+            variant="tonal"
+            class="mb-0"
+            icon="mdi-check-decagram"
+          >
+            <span class="font-weight-bold">Challenge Completed!</span>
+            <span class="text-caption ml-2">Your team has already captured this flag.</span>
+          </v-alert>
+
+          <!-- Flag Submission (only when NOT solved) -->
+          <template v-else>
+            <div class="d-flex align-center gap-2">
+              <v-text-field
+                v-model="flagInput"
+                label="Submit Flag"
+                placeholder="golabs{...}"
+                variant="outlined"
+                color="primary"
+                prepend-inner-icon="mdi-flag-variant"
+                hide-details
+                density="comfortable"
+                @keyup.enter="submitFlag"
+              ></v-text-field>
+              <v-btn 
+                color="primary" 
+                variant="elevated" 
+                @click="submitFlag" 
+                :loading="submitLoading"
+                :disabled="!flagInput.trim()"
+                class="font-weight-bold"
+              >
+                Submit
+              </v-btn>
+            </div>
+          </template>
         </v-card-text>
       </v-card>
     </v-dialog>
@@ -319,14 +329,24 @@ const submitFlag = async () => {
     })
     if (res.data.correct) {
       solvedIds.value.add(selectedChallenge.value.id)
-      notify.success(`Correct! +${res.data.points} points`)
-      challengeDialog.value = false
+      if (res.data.points > 0) {
+        notify.success(`Correct! +${res.data.points} points`)
+      } else {
+        notify.info('Challenge was already solved by your team.')
+      }
       await fetchChallenges()
     } else {
       notify.error('Incorrect flag. Try again.')
     }
   } catch (err) {
-    notify.error(err.response?.data?.error || 'Failed to submit flag.')
+    const errMsg = err.response?.data?.error || ''
+    // If backend says already solved, mark it
+    if (errMsg.toLowerCase().includes('already') || errMsg.toLowerCase().includes('solved')) {
+      solvedIds.value.add(selectedChallenge.value.id)
+      notify.info('This challenge has already been solved by your team.')
+    } else {
+      notify.error(errMsg || 'Failed to submit flag.')
+    }
   } finally {
     submitLoading.value = false
     flagInput.value = ''

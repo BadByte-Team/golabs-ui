@@ -16,35 +16,81 @@
 
       <v-spacer class="d-none d-sm-block"></v-spacer>
 
-      <!-- User Search -->
-      <div class="d-none d-md-block mr-4" style="max-width: 250px; width: 100%;">
-        <v-autocomplete
-          v-model="searchSelected"
-          :search="searchQuery"
-          @update:search="searchQuery = $event"
-          :items="searchResults"
-          :loading="searchLoading"
-          item-title="username"
-          item-value="id"
+      <!-- Global Search -->
+      <div class="d-none d-md-block mr-4" style="max-width: 280px; width: 100%;">
+        <v-text-field
+          v-model="searchQuery"
           density="compact"
           variant="outlined"
-          placeholder="Search Operatives..."
+          placeholder="Search users or events..."
           prepend-inner-icon="mdi-magnify"
           hide-details
-          menu-icon=""
-          hide-no-data
-          @update:model-value="goToProfile"
+          clearable
+          @keyup.enter="executeSearch"
+        ></v-text-field>
+
+        <!-- Search Results Dropdown -->
+        <v-menu
+          v-model="showResults"
+          :close-on-content-click="true"
+          location="bottom"
+          transition="scale-transition"
+          activator="parent"
+          max-height="400"
+          min-width="280"
         >
-          <template v-slot:item="{ props, item }">
-            <v-list-item v-bind="props">
+          <v-list bg-color="#0a0e17" class="search-results-list" density="compact" rounded="lg">
+            <v-list-subheader v-if="userResults.length > 0" class="text-primary font-weight-bold text-uppercase" style="letter-spacing: 2px;">
+              <v-icon size="small" class="mr-1">mdi-account-group</v-icon>Users
+            </v-list-subheader>
+            <v-list-item
+              v-for="u in userResults"
+              :key="'user-' + u.id"
+              @click="goToProfile(u.id)"
+            >
               <template v-slot:prepend>
-                <v-avatar color="primary" size="32" class="mr-2 text-caption font-weight-bold text-black">{{ item.raw.username.charAt(0).toUpperCase() }}</v-avatar>
+                <v-avatar color="primary" size="28" class="mr-2 text-caption font-weight-bold text-black">
+                  {{ u.username.charAt(0).toUpperCase() }}
+                </v-avatar>
               </template>
-              <v-list-item-title>{{ item.raw.username }}</v-list-item-title>
-              <v-list-item-subtitle class="text-caption text-uppercase" :class="item.raw.role === 'admin' ? 'text-error' : 'text-secondary'">{{ item.raw.role }}</v-list-item-subtitle>
+              <v-list-item-title class="text-white">{{ u.username }}</v-list-item-title>
+              <v-list-item-subtitle class="text-caption text-uppercase" :class="u.role === 'admin' ? 'text-error' : 'text-grey'">
+                {{ u.role }}
+              </v-list-item-subtitle>
             </v-list-item>
-          </template>
-        </v-autocomplete>
+
+            <v-divider v-if="userResults.length > 0 && eventResults.length > 0" class="my-1 border-opacity-25"></v-divider>
+
+            <v-list-subheader v-if="eventResults.length > 0" class="text-secondary font-weight-bold text-uppercase" style="letter-spacing: 2px;">
+              <v-icon size="small" class="mr-1">mdi-calendar-star</v-icon>Events
+            </v-list-subheader>
+            <v-list-item
+              v-for="ev in eventResults"
+              :key="'event-' + ev.id"
+              @click="goToEvent(ev.id)"
+            >
+              <template v-slot:prepend>
+                <v-icon color="secondary" size="small" class="mr-2">mdi-flag-checkered</v-icon>
+              </template>
+              <v-list-item-title class="text-white">{{ ev.name }}</v-list-item-title>
+              <v-list-item-subtitle class="text-caption text-uppercase" :class="getStatusClass(ev.status)">
+                {{ ev.status }}
+              </v-list-item-subtitle>
+            </v-list-item>
+
+            <!-- No results -->
+            <v-list-item v-if="searchDone && userResults.length === 0 && eventResults.length === 0">
+              <v-list-item-title class="text-grey text-center text-caption">No results found.</v-list-item-title>
+            </v-list-item>
+
+            <!-- Loading -->
+            <v-list-item v-if="searchLoading">
+              <div class="d-flex justify-center py-2">
+                <v-progress-circular indeterminate size="20" width="2" color="primary"></v-progress-circular>
+              </div>
+            </v-list-item>
+          </v-list>
+        </v-menu>
       </div>
 
       <v-spacer class="d-sm-none"></v-spacer>
@@ -150,7 +196,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watchEffect } from 'vue'
+import { ref, computed, watch, watchEffect } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
 import { api } from '@/api'
@@ -160,44 +206,101 @@ const route = useRoute()
 const mobileMenu = ref(false)
 const { isAdmin, logout, refresh } = useAuth()
 
-// Search
-const searchSelected = ref(null)
+// ── Search ─────────────────────────────────────────────────────────────────────
 const searchQuery = ref('')
 const searchLoading = ref(false)
-const searchResults = ref([])
-let searchTimeout = null
+const searchDone = ref(false)
+const showResults = ref(false)
+const userResults = ref([])
+const eventResults = ref([])
+let debounceTimer = null
 
-watchEffect(() => {
-  if (searchQuery.value && searchQuery.value.length >= 2 && !searchSelected.value) {
-    if (searchTimeout) clearTimeout(searchTimeout)
-    searchTimeout = setTimeout(async () => {
-      searchLoading.value = true
-      try {
-        const res = await api.get(`/users/search?q=${searchQuery.value}`)
-        searchResults.value = res.data.data || res.data || []
-      } catch {
-        searchResults.value = []
-      } finally {
-        searchLoading.value = false
-      }
-    }, 400)
-  } else if (!searchQuery.value) {
-    searchResults.value = []
-  }
-})
-
-const goToProfile = (id) => {
-  if (id) {
-    router.push(`/profile?id=${id}`)
-    // Reset
-    setTimeout(() => {
-      searchSelected.value = null
-      searchQuery.value = ''
-      searchResults.value = []
-    }, 100)
+const getStatusClass = (status) => {
+  switch (status) {
+    case 'running': return 'text-success'
+    case 'open': return 'text-primary'
+    case 'finished': return 'text-grey'
+    default: return 'text-warning'
   }
 }
 
+// Debounced search watcher
+watch(searchQuery, (val) => {
+  if (debounceTimer) clearTimeout(debounceTimer)
+  
+  if (!val || val.length < 2) {
+    userResults.value = []
+    eventResults.value = []
+    showResults.value = false
+    searchDone.value = false
+    return
+  }
+
+  debounceTimer = setTimeout(() => {
+    executeSearch()
+  }, 400)
+})
+
+const executeSearch = async () => {
+  if (!searchQuery.value || searchQuery.value.length < 2) return
+  
+  searchLoading.value = true
+  searchDone.value = false
+  showResults.value = true
+
+  try {
+    // Fetch users and events in parallel
+    const [usersRes, eventsRes] = await Promise.allSettled([
+      api.get(`/users/search?q=${encodeURIComponent(searchQuery.value)}`),
+      api.get('/events')
+    ])
+
+    // Users
+    if (usersRes.status === 'fulfilled') {
+      const data = usersRes.value.data.data || usersRes.value.data || []
+      userResults.value = Array.isArray(data) ? data.slice(0, 5) : []
+    } else {
+      userResults.value = []
+    }
+
+    // Events — filter client-side by name match
+    if (eventsRes.status === 'fulfilled') {
+      const allEvents = eventsRes.value.data.data || eventsRes.value.data || []
+      const q = searchQuery.value.toLowerCase()
+      eventResults.value = (Array.isArray(allEvents) ? allEvents : [])
+        .filter(ev => (ev.name || '').toLowerCase().includes(q))
+        .slice(0, 5)
+    } else {
+      eventResults.value = []
+    }
+  } catch {
+    userResults.value = []
+    eventResults.value = []
+  } finally {
+    searchLoading.value = false
+    searchDone.value = true
+  }
+}
+
+const goToProfile = (id) => {
+  router.push({ path: '/profile', query: { id } })
+  resetSearch()
+}
+
+const goToEvent = (id) => {
+  router.push(`/events/${id}`)
+  resetSearch()
+}
+
+const resetSearch = () => {
+  searchQuery.value = ''
+  userResults.value = []
+  eventResults.value = []
+  showResults.value = false
+  searchDone.value = false
+}
+
+// ── Nav logic ──────────────────────────────────────────────────────────────────
 const isLoginRoute = computed(() => route.path === '/login' || route.path === '/')
 
 // Re-check role whenever the route changes (handles fresh login)
@@ -260,5 +363,10 @@ const handleLogout = async () => {
 .mobile-menu-list {
   border: 1px solid rgba(0, 230, 118, 0.3) !important;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6) !important;
+}
+
+.search-results-list {
+  border: 1px solid rgba(0, 230, 118, 0.25) !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8) !important;
 }
 </style>

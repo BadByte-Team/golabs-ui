@@ -23,7 +23,7 @@
               <v-chip :color="profile.role === 'admin' ? 'error' : 'secondary'" size="small" variant="flat" class="font-weight-bold text-uppercase">
                 {{ profile.role }}
               </v-chip>
-              <span class="text-caption text-grey">{{ profile.email }}</span>
+              <span v-if="profile.email" class="text-caption text-grey">{{ profile.email }}</span>
             </div>
           </div>
         </div>
@@ -33,7 +33,7 @@
         <v-row>
           <v-col cols="6" sm="3">
             <div class="text-caption text-grey text-uppercase" style="letter-spacing: 2px;">Points</div>
-            <div class="text-h5 font-weight-black text-primary mt-1">{{ profile.points }}</div>
+            <div class="text-h5 font-weight-black text-primary mt-1">{{ profile.points ?? 0 }}</div>
           </v-col>
           <v-col cols="6" sm="3">
             <div class="text-caption text-grey text-uppercase" style="letter-spacing: 2px;">Role</div>
@@ -54,7 +54,7 @@
         </v-row>
       </v-card>
 
-      <!-- Edit Profile -->
+      <!-- Edit Profile (only for own profile) -->
       <v-card v-if="isOwner" class="glass-panel pa-8 mb-8" rounded="xl">
         <h3 class="text-h6 font-weight-bold text-white mb-6">
           <v-icon class="mr-2" color="primary">mdi-pencil</v-icon>Edit Profile
@@ -84,7 +84,7 @@
         </v-btn>
       </v-card>
 
-      <!-- Change Password -->
+      <!-- Change Password (only for own profile) -->
       <v-card v-if="isOwner" class="glass-panel pa-8" rounded="xl">
         <h3 class="text-h6 font-weight-bold text-white mb-6">
           <v-icon class="mr-2" color="warning">mdi-lock-reset</v-icon>Change Password
@@ -119,7 +119,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useAuth } from '@/composables/useAuth'
 import { useNotify } from '@/composables/useNotify'
 import { api } from '@/api'
@@ -147,6 +147,7 @@ const passLoading = ref(false)
 const fetchProfile = async () => {
   try {
     loading.value = true
+    profile.value = null
     const res = await api.get(`/users/${targetUserId.value}`)
     profile.value = res.data
     editForm.value.username = res.data.username || ''
@@ -201,7 +202,7 @@ const changePassword = async () => {
       new_password: passForm.value.new_password
     })
     notify.success('Password changed successfully!')
-          passForm.value = { current_password: '', new_password: '' }
+    passForm.value = { current_password: '', new_password: '' }
   } catch (err) {
     passError.value = err.response?.data?.error || 'Failed to change password.'
   } finally {
@@ -209,7 +210,11 @@ const changePassword = async () => {
   }
 }
 
-watch(() => route.query.id, fetchProfile)
+// Re-fetch when navigating to a different user's profile
+watch(() => route.query.id, () => {
+  fetchProfile()
+})
+
 onMounted(fetchProfile)
 </script>
 
