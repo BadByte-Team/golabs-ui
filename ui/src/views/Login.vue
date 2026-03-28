@@ -8,7 +8,7 @@
         
         <v-icon size="120" color="primary" class="mb-6 glow-icon">mdi-shield-lock-outline</v-icon>
         <h1 class="text-h2 font-weight-black text-white text-center mb-4 ctf-logo">
-          GOLABS <span class="text-primary">CTF</span>
+          BADBYTE <span class="text-primary">CTF</span>
         </h1>
         <p class="text-h5 text-grey-lighten-1 font-weight-medium tracking-wide">
           HACK. LEARN. COMPETE.

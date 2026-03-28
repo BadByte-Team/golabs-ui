@@ -10,7 +10,7 @@
       >
         <v-icon color="primary" class="mr-2 glow-icon">mdi-shield-lock-outline</v-icon>
         <v-app-bar-title class="font-weight-black text-h6 text-md-h5 ctf-brand mb-0">
-          GOLABS <span class="text-primary">CTF</span>
+          BADBYTE <span class="text-primary">CTF</span>
         </v-app-bar-title>
       </div>
 

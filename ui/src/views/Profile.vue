@@ -33,10 +33,6 @@
               <v-icon v-else color="primary" class="ml-3" size="32" title="Operative">mdi-check-decagram</v-icon>
             </div>
 
-            <div class="text-h6 text-primary mb-4 text-uppercase font-weight-bold" style="letter-spacing: 3px;">
-              {{ hackerTitle }}
-            </div>
-
             <!-- Level Progress -->
             <div class="level-system mb-4">
               <div class="d-flex justify-space-between align-end mb-1">
