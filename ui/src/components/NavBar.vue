@@ -14,7 +14,40 @@
         </v-app-bar-title>
       </div>
 
-      <v-spacer></v-spacer>
+      <v-spacer class="d-none d-sm-block"></v-spacer>
+
+      <!-- User Search -->
+      <div class="d-none d-md-block mr-4" style="max-width: 250px; width: 100%;">
+        <v-autocomplete
+          v-model="searchSelected"
+          :search="searchQuery"
+          @update:search="searchQuery = $event"
+          :items="searchResults"
+          :loading="searchLoading"
+          item-title="username"
+          item-value="id"
+          density="compact"
+          variant="outlined"
+          placeholder="Search Operatives..."
+          prepend-inner-icon="mdi-magnify"
+          hide-details
+          menu-icon=""
+          hide-no-data
+          @update:model-value="goToProfile"
+        >
+          <template v-slot:item="{ props, item }">
+            <v-list-item v-bind="props">
+              <template v-slot:prepend>
+                <v-avatar color="primary" size="32" class="mr-2 text-caption font-weight-bold text-black">{{ item.raw.username.charAt(0).toUpperCase() }}</v-avatar>
+              </template>
+              <v-list-item-title>{{ item.raw.username }}</v-list-item-title>
+              <v-list-item-subtitle class="text-caption text-uppercase" :class="item.raw.role === 'admin' ? 'text-error' : 'text-secondary'">{{ item.raw.role }}</v-list-item-subtitle>
+            </v-list-item>
+          </template>
+        </v-autocomplete>
+      </div>
+
+      <v-spacer class="d-sm-none"></v-spacer>
 
       <!-- Desktop Menu -->
       <div class="d-none d-md-flex align-center">
@@ -40,12 +73,12 @@
 
         <v-btn 
           variant="text" 
-          prepend-icon="mdi-sword-cross" 
-          to="/practice" 
+          prepend-icon="mdi-account-circle" 
+          to="/profile" 
           class="nav-btn mx-1"
           active-class="text-primary font-weight-bold"
         >
-          Practice
+          Profile
         </v-btn>
         
         <v-slide-x-transition>
@@ -65,7 +98,7 @@
         <v-btn 
           variant="outlined" 
           color="primary" 
-          @click="logout" 
+          @click="handleLogout" 
           prepend-icon="mdi-logout" 
           class="logout-btn mx-1 ml-4"
         >
@@ -94,8 +127,8 @@
               <v-list-item-title>Events</v-list-item-title>
             </v-list-item>
 
-            <v-list-item to="/practice" prepend-icon="mdi-sword-cross" @click="mobileMenu = false" active-class="text-primary">
-              <v-list-item-title>Practice</v-list-item-title>
+            <v-list-item to="/profile" prepend-icon="mdi-account-circle" @click="mobileMenu = false" active-class="text-primary">
+              <v-list-item-title>Profile</v-list-item-title>
             </v-list-item>
             
             <v-divider class="my-1 border-opacity-25" color="primary"></v-divider>
@@ -106,7 +139,7 @@
             
             <v-divider v-if="isAdmin" class="my-1 border-opacity-25" color="error"></v-divider>
             
-            <v-list-item @click="logout(); mobileMenu = false" prepend-icon="mdi-logout" class="mt-2">
+            <v-list-item @click="handleLogout(); mobileMenu = false" prepend-icon="mdi-logout" class="mt-2">
               <v-list-item-title class="text-primary font-weight-bold">Disconnect</v-list-item-title>
             </v-list-item>
           </v-list>
@@ -119,47 +152,63 @@
 <script setup>
 import { ref, computed, watchEffect } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { useAuth } from '@/composables/useAuth'
+import { api } from '@/api'
 
 const router = useRouter()
 const route = useRoute()
 const mobileMenu = ref(false)
-const isAdmin = ref(false)
+const { isAdmin, logout, refresh } = useAuth()
 
-const isLoginRoute = computed(() => route.path === '/login' || route.path === '/')
+// Search
+const searchSelected = ref(null)
+const searchQuery = ref('')
+const searchLoading = ref(false)
+const searchResults = ref([])
+let searchTimeout = null
 
-const checkRole = () => {
-  const token = localStorage.getItem('access_token')
-  if (!token) {
-    isAdmin.value = false
-    return
-  }
-  
-  try {
-    const base64Url = token.split('.')[1]
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/')
-    const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
-        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
-    }).join(''))
-
-    const payload = JSON.parse(jsonPayload)
-    isAdmin.value = payload.role === 'admin'
-  } catch (e) {
-    console.error('Error parsing token:', e)
-    isAdmin.value = false
-  }
-}
-
-// Watch route changes to recheck token in case user just logged in and route changed
 watchEffect(() => {
-  if (!isLoginRoute.value) {
-    checkRole()
+  if (searchQuery.value && searchQuery.value.length >= 2 && !searchSelected.value) {
+    if (searchTimeout) clearTimeout(searchTimeout)
+    searchTimeout = setTimeout(async () => {
+      searchLoading.value = true
+      try {
+        const res = await api.get(`/users/search?q=${searchQuery.value}`)
+        searchResults.value = res.data.data || res.data || []
+      } catch {
+        searchResults.value = []
+      } finally {
+        searchLoading.value = false
+      }
+    }, 400)
+  } else if (!searchQuery.value) {
+    searchResults.value = []
   }
 })
 
-const logout = () => {
-  localStorage.removeItem('access_token')
-  localStorage.removeItem('refresh_token')
-  router.push('/login')
+const goToProfile = (id) => {
+  if (id) {
+    router.push(`/profile?id=${id}`)
+    // Reset
+    setTimeout(() => {
+      searchSelected.value = null
+      searchQuery.value = ''
+      searchResults.value = []
+    }, 100)
+  }
+}
+
+const isLoginRoute = computed(() => route.path === '/login' || route.path === '/')
+
+// Re-check role whenever the route changes (handles fresh login)
+watchEffect(() => {
+  if (!isLoginRoute.value) {
+    refresh()
+  }
+})
+
+const handleLogout = async () => {
+  await logout()
 }
 </script>
 
