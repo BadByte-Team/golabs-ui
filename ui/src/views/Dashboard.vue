@@ -172,7 +172,9 @@ const fetchEvents = async () => {
   try {
     loadingEvents.value = true
     const res = await api.get('/events')
-    events.value = res.data.data || res.data || []
+    const all = res.data.data || res.data || []
+    // Non-admin users should only see running and finished events
+    events.value = isAdmin.value ? all : all.filter(e => e.status === 'running' || e.status === 'finished')
   } catch {
     events.value = []
   } finally {

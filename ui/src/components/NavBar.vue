@@ -126,6 +126,16 @@
         >
           Profile
         </v-btn>
+
+        <v-btn 
+          variant="text" 
+          prepend-icon="mdi-school" 
+          to="/practice" 
+          class="nav-btn mx-1"
+          active-class="text-warning font-weight-bold"
+        >
+          Practice
+        </v-btn>
         
         <v-slide-x-transition>
           <v-btn 
@@ -175,6 +185,10 @@
 
             <v-list-item to="/profile" prepend-icon="mdi-account-circle" @click="mobileMenu = false" active-class="text-primary">
               <v-list-item-title>Profile</v-list-item-title>
+            </v-list-item>
+
+            <v-list-item to="/practice" prepend-icon="mdi-school" @click="mobileMenu = false" active-class="text-warning">
+              <v-list-item-title>Practice</v-list-item-title>
             </v-list-item>
             
             <v-divider class="my-1 border-opacity-25" color="primary"></v-divider>
