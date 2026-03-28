@@ -111,7 +111,7 @@
                   </td>
                   <td class="text-right">
                     <v-btn v-if="event.status === 'draft'" size="small" icon="mdi-pencil" variant="text" color="primary" @click="openEditEventDialog(event)"></v-btn>
-                    <v-btn v-if="event.status === 'draft'" size="small" icon="mdi-delete" variant="text" color="error" @click="confirmDeleteEvent(event)"></v-btn>
+                    <v-btn v-if="event.status === 'draft' || event.status === 'finished'" size="small" icon="mdi-delete" variant="text" color="error" @click="confirmDeleteEvent(event)"></v-btn>
                     <span v-if="event.status !== 'draft'" class="text-caption text-grey">Locked</span>
                   </td>
                 </tr>
