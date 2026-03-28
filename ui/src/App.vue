@@ -8,11 +8,30 @@
         </v-fade-transition>
       </router-view>
     </v-main>
+
+    <!-- Global notification snackbar -->
+    <v-snackbar
+      v-model="snackbar.show.value"
+      :color="snackbar.color.value"
+      :timeout="snackbar.timeout.value"
+      location="bottom end"
+      rounded="lg"
+      elevation="8"
+      class="mb-4"
+    >
+      {{ snackbar.message.value }}
+      <template v-slot:actions>
+        <v-btn variant="text" icon="mdi-close" size="small" @click="snackbar.show.value = false"></v-btn>
+      </template>
+    </v-snackbar>
   </v-app>
 </template>
 
 <script setup>
 import NavBar from '@/components/NavBar.vue'
+import { useNotify } from '@/composables/useNotify'
+
+const snackbar = useNotify()
 </script>
 
 <style>
@@ -25,5 +44,9 @@ import NavBar from '@/components/NavBar.vue'
 }
 ::-webkit-scrollbar-thumb {
   background: #00e676;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #18ffff;
 }
 </style>

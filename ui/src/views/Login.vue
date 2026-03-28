@@ -35,7 +35,7 @@
             {{ error }}
           </v-alert>
 
-          <v-form @submit.prevent="handleLogin" v-model="valid">
+          <v-form @submit.prevent="handleSubmit" v-model="valid">
             <v-text-field
               v-model="username"
               label="Username"
@@ -43,7 +43,7 @@
               color="primary"
               prepend-inner-icon="mdi-account"
               class="mb-4 custom-input"
-              required
+              :rules="[v => !!v || 'Username is required']"
             ></v-text-field>
 
             <v-slide-y-transition>
@@ -55,7 +55,7 @@
                 color="primary"
                 prepend-inner-icon="mdi-email"
                 class="mb-4 custom-input"
-                required
+                :rules="registering ? [v => !!v || 'Email is required', v => /.+@.+\..+/.test(v) || 'Invalid email'] : []"
               ></v-text-field>
             </v-slide-y-transition>
 
@@ -69,12 +69,11 @@
               :append-inner-icon="showPassword ? 'mdi-eye-off' : 'mdi-eye'"
               @click:append-inner="showPassword = !showPassword"
               class="mb-2 custom-input"
-              required
+              :rules="[v => !!v || 'Password is required', v => v.length >= 6 || 'Min 6 characters']"
             ></v-text-field>
 
-            <div class="d-flex justify-space-between align-center mb-8" v-if="!registering">
-              <v-checkbox label="Remember me" color="primary" hide-details class="text-grey-lighten-1"></v-checkbox>
-              <a href="#" class="text-primary text-decoration-none text-body-2 font-weight-bold hover-glow">Forgot Password?</a>
+            <div class="d-flex justify-end align-center mb-8" v-if="!registering">
+              <a href="#" class="text-primary text-decoration-none text-body-2 font-weight-bold hover-glow" @click.prevent>Forgot Password?</a>
             </div>
 
             <v-btn
@@ -83,7 +82,8 @@
               size="x-large"
               color="primary"
               class="auth-btn font-weight-bold mb-6"
-              :loading="loading"
+              :loading="authLoading"
+              :disabled="!valid"
               elevation="8"
             >
               {{ registering ? 'INITIALIZE HACK' : 'AUTHENTICATE' }}
@@ -110,15 +110,18 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { api } from '@/api'
+import { useAuth } from '@/composables/useAuth'
+import { useNotify } from '@/composables/useNotify'
 
 const router = useRouter()
+const { login, register, loading: authLoading } = useAuth()
+const notify = useNotify()
+
 const valid = ref(false)
 const username = ref('')
 const email = ref('')
 const password = ref('')
 const error = ref('')
-const loading = ref(false)
 const showPassword = ref(false)
 const registering = ref(false)
 
@@ -130,39 +133,22 @@ const toggleMode = () => {
   email.value = ''
 }
 
-const handleLogin = async () => {
+const handleSubmit = async () => {
   if (!username.value || !password.value) return
-  loading.value = true
   error.value = ''
   
   try {
     if (registering.value) {
       if (!email.value) {
         error.value = 'Email is required for registration.'
-        loading.value = false
         return
       }
-      await api.post('/auth/register', {
-        username: username.value,
-        email: email.value,
-        password: password.value,
-      })
-      error.value = 'Registration successful! Please sign in.'
+      await register(username.value, email.value, password.value)
+      notify.success('Registration successful! Please sign in.')
       toggleMode()
     } else {
-      const res = await api.post('/auth/login', {
-        identifier: username.value,
-        password: password.value,
-      })
-      if (res.data.access_token) {
-        localStorage.setItem('access_token', res.data.access_token)
-        if (res.data.refresh_token) {
-          localStorage.setItem('refresh_token', res.data.refresh_token)
-        }
-        router.push('/dashboard')
-      } else {
-        error.value = 'Token missing in response'
-      }
+      await login(username.value, password.value)
+      router.push('/dashboard')
     }
   } catch (err) {
     if (err.response?.status === 400 || err.response?.status === 422) {
@@ -174,8 +160,6 @@ const handleLogin = async () => {
     } else {
       error.value = err.response?.data?.message || err.response?.data?.error || 'Connection to mainframe failed. Try again.'
     }
-  } finally {
-    loading.value = false
   }
 }
 </script>
