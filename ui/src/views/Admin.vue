@@ -111,6 +111,7 @@
                   </td>
                   <td class="text-right">
                     <v-btn v-if="event.status === 'draft'" size="small" icon="mdi-pencil" variant="text" color="primary" @click="openEditEventDialog(event)"></v-btn>
+                    <v-btn v-if="event.status === 'draft'" size="small" icon="mdi-delete" variant="text" color="error" @click="confirmDeleteEvent(event)"></v-btn>
                     <span v-if="event.status !== 'draft'" class="text-caption text-grey">Locked</span>
                   </td>
                 </tr>
@@ -267,6 +268,17 @@
       :color="banTarget?.banned ? 'success' : 'error'"
       :icon="banTarget?.banned ? 'mdi-account-check' : 'mdi-account-cancel'"
       @confirm="executeBan"
+    />
+
+    <!-- Confirm Delete Event Dialog -->
+    <ConfirmDialog
+      v-model="deleteEventDialog"
+      title="Delete Event"
+      :message="`Are you sure you want to permanently delete '${deleteEventTarget?.name}'? This cannot be undone.`"
+      confirm-text="Delete"
+      color="error"
+      icon="mdi-delete-alert"
+      @confirm="executeDeleteEvent"
     />
   </v-container>
 </template>
@@ -471,6 +483,26 @@ const forceChangeStatus = async (event, targetStatus) => {
   } catch (err) {
     notify.error('Status transition failed: ' + (err.response?.data?.error || err.message))
     await fetchEvents()
+  }
+}
+
+const deleteEventDialog = ref(false)
+const deleteEventTarget = ref(null)
+
+const confirmDeleteEvent = (event) => {
+  deleteEventTarget.value = event
+  deleteEventDialog.value = true
+}
+
+const executeDeleteEvent = async () => {
+  deleteEventDialog.value = false
+  if (!deleteEventTarget.value) return
+  try {
+    await api.post(`/events/${deleteEventTarget.value.id}/delete`)
+    notify.success('Event deleted successfully.')
+    await fetchEvents()
+  } catch (err) {
+    notify.error(err.response?.data?.error || 'Failed to delete event.')
   }
 }
 

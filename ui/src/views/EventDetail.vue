@@ -48,8 +48,8 @@
         </div>
       </v-card>
 
-      <!-- Challenges Section (Only visible if running or admin) -->
-      <template v-if="isAdmin || event.status === 'running'">
+      <!-- Challenges Section (visible if running, admin, or team member) -->
+      <template v-if="isAdmin || event.status === 'running' || isTeamMember">
         <div class="d-flex justify-space-between align-center mb-4">
           <h2 class="text-h5 font-weight-bold text-white" style="letter-spacing: 1px;">Challenges</h2>
           <div class="text-caption text-grey">{{ challenges.length }} total</div>
@@ -109,7 +109,7 @@
       <v-card v-else class="glass-panel pa-8 text-center" rounded="xl" style="border-style: dashed !important;">
         <v-icon size="48" color="warning" class="mb-3">mdi-lock-clock</v-icon>
         <h3 class="text-h6 font-weight-bold text-white">Classified Area</h3>
-        <p class="text-grey mb-0">Challenges will be revealed when the event officially starts.</p>
+        <p class="text-grey mb-0">Join a team to access challenge details, or wait until the event starts.</p>
       </v-card>
     </template>
 
@@ -155,8 +155,20 @@
             <span class="text-caption ml-2">Your team has already captured this flag.</span>
           </v-alert>
 
-          <!-- Flag Submission (only when NOT solved) -->
-          <template v-else>
+          <!-- Read-only notice when event is not running -->
+          <v-alert
+            v-else-if="event.status !== 'running'"
+            type="info"
+            variant="tonal"
+            class="mb-0"
+            icon="mdi-eye-outline"
+          >
+            <span class="font-weight-bold">Read Only</span>
+            <span class="text-caption ml-2">Flag submission is disabled because the event is not currently running.</span>
+          </v-alert>
+
+          <!-- Flag Submission (only when NOT solved AND event is running) -->
+          <template v-else-if="event.status === 'running'">
             <div class="d-flex align-center gap-2">
               <v-text-field
                 v-model="flagInput"
@@ -245,7 +257,7 @@ import { useAuth } from '@/composables/useAuth'
 
 const route = useRoute()
 const notify = useNotify()
-const { isAdmin } = useAuth()
+const { isAdmin, userId } = useAuth()
 const eventId = route.params.id
 
 const event = ref(null)
@@ -253,6 +265,7 @@ const challenges = ref([])
 const loading = ref(true)
 const error = ref('')
 const activeCat = ref('')
+const isTeamMember = ref(false)
 
 // Challenge solving
 const challengeDialog = ref(false)
@@ -397,8 +410,29 @@ const createTeam = async () => {
   }
 }
 
+const checkTeamMembership = async () => {
+  try {
+    const teamsRes = await api.get(`/events/${eventId}/teams`)
+    const teams = teamsRes.data.data || teamsRes.data || []
+    for (const team of teams) {
+      try {
+        const membersRes = await api.get(`/events/${eventId}/teams/${team.id}/members`)
+        const members = membersRes.data.data || membersRes.data || []
+        if (members.some(m => m.user_id === userId.value)) {
+          isTeamMember.value = true
+          return
+        }
+      } catch {
+        // skip team if members can't be fetched
+      }
+    }
+  } catch {
+    // Not critical — user just won't see challenges
+  }
+}
+
 onMounted(async () => {
-  await Promise.all([fetchEvent(), fetchChallenges()])
+  await Promise.all([fetchEvent(), fetchChallenges(), checkTeamMembership()])
   loading.value = false
 })
 </script>
