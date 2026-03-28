@@ -4,7 +4,7 @@ import router from '@/router'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 interface TokenPayload {
-  user_id: string
+  sub: string
   role: 'admin' | 'user'
   iss?: string
   exp?: number
@@ -49,7 +49,7 @@ function loadUserFromStorage(): void {
   if (token && !isTokenExpired(token)) {
     const payload = decodeToken(token)
     if (payload) {
-      user.value = { id: payload.user_id, role: payload.role }
+      user.value = { id: payload.sub, role: payload.role }
       return
     }
   }
