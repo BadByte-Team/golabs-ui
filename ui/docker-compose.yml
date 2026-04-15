@@ -1,0 +1,81 @@
+services:
+
+  # ── Base de datos ────────────────────────────────────────────────────────────
+  db:
+    image: mariadb:11
+    restart: unless-stopped
+    # Load variables from the API's .env file explicitly
+    env_file:
+      - ../api/golabs-api/.env
+    environment:
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?DB_ROOT_PASSWORD is required}
+      MARIADB_DATABASE: ${DB_NAME:-golabs}
+      MARIADB_USER: ${DB_USER:-golabs}
+      MARIADB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+    volumes:
+      - db_data:/var/lib/mysql
+      - ../api/golabs-api/deployments/database/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - backend-net
+
+  # ── API Backend ──────────────────────────────────────────────────────────────
+  api:
+    build:
+      context: ../api/golabs-api
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ../api/golabs-api/.env
+    environment:
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_NAME: ${DB_NAME:-golabs}
+      DB_USER: ${DB_USER:-golabs}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - backend-net
+      - frontend-net
+
+  # ── UI Frontend ──────────────────────────────────────────────────────────────
+  ui:
+    # Builds the UI using the unified Dockerfile in this directory
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+      - "443:443"
+    depends_on:
+      - api
+    networks:
+      - frontend-net    # Internal communication with the API container
+      - public-net      # External network allowing port publishing!
+
+networks:
+  # Internal network between API and DB.
+  backend-net:
+    driver: bridge
+    internal: true
+    
+  # Internal network between UI and API.
+  frontend-net:
+    driver: bridge
+    internal: true
+
+  # Public network for the UI to expose ports properly.
+  public-net:
+    driver: bridge
+
+volumes:
+  db_data:
